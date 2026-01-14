@@ -10,45 +10,37 @@ ENV PHP_INI_DIR /etc/php/8.3
 
 RUN apk add --no-cache nginx openrc
 
-RUN apk --update add \
-        php \
-        php-bcmath \
-        php-dom \
-        php-ctype \
-        php-curl \
-        php-fileinfo \
-        php-fpm \
-        php-gd \
-        php-iconv \
-        php-intl \
-        php-json \
-        php-mbstring \
-        php-mysqlnd \
-        php-opcache \
-        php-openssl \
-        php-pdo \
-        php-pdo_mysql \
-        php-pdo_pgsql \
-        php-pdo_sqlite \
-        php-phar \
-        php-posix \
-        php-simplexml \
-        php-session \
-        php-soap \
-        php-tokenizer \
-        php-xml \
-        php-xmlreader \
-        php-xmlwriter \
-        php-zip \
-        curl
-
 RUN apk add --no-cache \
-    php83 \
-    php83-fpm \
-    php83-json \
-    php83-openssl \
-    php83-curl \
-    php83-session
+        php83 \
+        php83-bcmath \
+        php83-dom \
+        php83-ctype \
+        php83-curl \
+        php83-fileinfo \
+        php83-fpm \
+        php83-gd \
+        php83-iconv \
+        php83-intl \
+        php83-json \
+        php83-mbstring \
+        php83-mysqlnd \
+        php83-opcache \
+        php83-openssl \
+        php83-pdo \
+        php83-pdo_mysql \
+        php83-pdo_pgsql \
+        php83-pdo_sqlite \
+        php83-phar \
+        php83-posix \
+        php83-simplexml \
+        php83-session \
+        php83-soap \
+        php83-tokenizer \
+        php83-xml \
+        php83-xmlreader \
+        php83-xmlwriter \
+        php83-zip \
+        curl
 
 EXPOSE 8888
 EXPOSE 8899
