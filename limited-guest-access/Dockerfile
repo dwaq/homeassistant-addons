@@ -42,6 +42,14 @@ RUN apk --update add \
         php-zip \
         curl
 
+RUN apk add --no-cache \
+    php83 \
+    php83-fpm \
+    php83-json \
+    php83-openssl \
+    php83-curl \
+    php83-session
+
 EXPOSE 8888
 EXPOSE 8899
 
