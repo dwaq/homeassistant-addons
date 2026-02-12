@@ -20,13 +20,18 @@ class Actions {
     protected function boot(): void
     {
         date_default_timezone_set($_SERVER["TZ"]);
-        if (session_status() == PHP_SESSION_NONE) {
-            session_start();
-        }
+        
+        // MOVED: session_start() is removed from here. 
+        // We will start it only after confirming we have a valid link.
         
         // Load and validate link data
         $this->loadLinkData();
         
+        // Start session only if we have valid data (stops bots from filling disk with sessions)
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+
         // Handle authentication
         $this->handleAuthentication();
         
@@ -69,59 +74,66 @@ class Actions {
             $linkId = $this->getLink();
             $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
-            // Initialize the authenticated_links array if it doesn't exist
+            // Initialize session arrays if needed
             if (!isset($_SESSION['authenticated_links'])) {
                 $_SESSION['authenticated_links'] = [];
             }
-
-            // Initialize failed attempts tracking if it doesn't exist
             if (!isset($_SESSION['failed_attempts'])) {
                 $_SESSION['failed_attempts'] = [];
             }
 
-            // Check for an existing session for this specific link
+            // --- FIX START: Non-blocking Rate Limit ---
+            $attemptKey = $linkId . '_' . $clientIp;
+            
+            // Check if user is currently blocked by time (Prevent sleep)
+            if (isset($_SESSION['next_login_allowed'][$attemptKey]) && 
+                time() < $_SESSION['next_login_allowed'][$attemptKey]) {
+                $this->authFailed = true;
+                return; // Exit immediately, do not verify password, do not sleep
+            }
+            // --- FIX END ---
+
+            // Check for an existing session
             if (isset($_SESSION['authenticated_links'][$linkId])) {
-                // Check for session expiry
                 if (isset($_SESSION['authenticated_links'][$linkId]['login_time']) && (time() - $_SESSION['authenticated_links'][$linkId]['login_time'] < 3600)) {
                     $this->authenticated = true;
                 } else {
-                    // Session for this link has expired
                     unset($_SESSION['authenticated_links'][$linkId]);
-                    $this->authFailed = true; // Show login form again
+                    $this->authFailed = true;
                 }
             }
 
             // Handle a new login attempt
             if (isset($_POST['password'])) {
-                $attemptKey = $linkId . '_' . $clientIp;
                 $success = password_verify($_POST['password'], $this->data->linkData->password);
 
-                // Log the attempt
+                // Log the attempt (Consider disabling this if I/O is too high during attacks)
                 $this->logLoginAttempt($linkId, $clientIp, $success);
 
                 if ($success) {
-                    // Successful login
                     session_regenerate_id(true);
-                    $_SESSION['authenticated_links'][$linkId] = [
-                        'login_time' => time()
-                    ];
-                    // Reset failed attempts on successful login
+                    $_SESSION['authenticated_links'][$linkId] = ['login_time' => time()];
                     unset($_SESSION['failed_attempts'][$attemptKey]);
+                    unset($_SESSION['next_login_allowed'][$attemptKey]); // Clear block
                     $this->authenticated = true;
                 } else {
-                    // Failed login - implement exponential backoff
+                    // Failed login - Calculate backoff
                     if (!isset($_SESSION['failed_attempts'][$attemptKey])) {
                         $_SESSION['failed_attempts'][$attemptKey] = 0;
                     }
                     $_SESSION['failed_attempts'][$attemptKey]++;
 
                     $failedCount = $_SESSION['failed_attempts'][$attemptKey];
-                    $delay = pow(2, $failedCount); // Exponential backoff: 2^failed_attempts seconds
-
-                    // Cap the delay at 60 seconds to prevent excessive waiting
+                    $delay = pow(2, $failedCount);
                     $delay = min($delay, 60);
 
-                    sleep($delay); // Introduce the delay
+                    // --- FIX START: Set future timestamp instead of sleeping ---
+                    if (!isset($_SESSION['next_login_allowed'])) {
+                        $_SESSION['next_login_allowed'] = [];
+                    }
+                    $_SESSION['next_login_allowed'][$attemptKey] = time() + $delay;
+                    // sleep($delay); // REMOVED: This was causing the crashes
+                    // --- FIX END ---
 
                     $this->authFailed = true;
                 }
