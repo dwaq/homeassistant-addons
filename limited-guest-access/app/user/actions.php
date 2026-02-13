@@ -21,21 +21,17 @@ class Actions {
     {
         date_default_timezone_set($_SERVER["TZ"]);
         
-        // MOVED: session_start() is removed from here. 
-        // We will start it only after confirming we have a valid link.
-        
-        // Load and validate link data
         $this->loadLinkData();
         
-        // Start session only if we have valid data (stops bots from filling disk with sessions)
         if (session_status() == PHP_SESSION_NONE) {
             session_start();
         }
 
-        // Handle authentication
         $this->handleAuthentication();
         
-        // Handle actions if present
+        // FIX: Release the session lock to prevent worker pileups during slow API calls
+        session_write_close();
+        
         $this->handleAction();
     }
 
@@ -213,6 +209,12 @@ class Actions {
             $actions->$actionId->last_used = [];
         }
         $actions->$actionId->last_used[] = $time->format('U');
+        
+        // FIX: Prevent unbounded memory growth by keeping only the last 50 entries
+        if (count($actions->$actionId->last_used) > 50) {
+            $actions->$actionId->last_used = array_slice($actions->$actionId->last_used, -50);
+        }
+        
         file_put_contents(self::DATA_DIR . $this->getLink() . '.json', json_encode($actions));
 
         return $this;
@@ -239,6 +241,9 @@ class Actions {
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        // FIX: Prevent indefinite hangs
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3); 
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             "Authorization: Bearer {$_SERVER['SUPERVISOR_TOKEN']}",
             'Content-Type: application/json',
@@ -313,6 +318,9 @@ class Actions {
     {
         $ch = curl_init(self::API_URL . 'states/'. $entityId);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        // FIX: Prevent indefinite hangs
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             "Authorization: Bearer {$_SERVER['SUPERVISOR_TOKEN']}"
         ]);

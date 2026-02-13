@@ -1,3 +1,7 @@
+## [0.3.1] - 2026-02-13
+### Security
+- Fixes to prevent OOM crashes
+
 ## [0.3.0] - 2026-02-12
 ### Security
 - Improvements to stop crawlers
